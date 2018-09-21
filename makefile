@@ -13,6 +13,9 @@ server.o: server.c
 client.o: client.c
 	gcc -c  client.c -o client.o
 
+testclient:
+	./client 192.168.1.17 5544 input.txt  > log.txt
+
 clean: 
 	rm -f *.o client server  
 

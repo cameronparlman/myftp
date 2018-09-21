@@ -6,43 +6,62 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-#define MAX 150
+#define MAX 300
 //#define port 43454
 #define SA struct sockaddr
 
+typedef struct fileinfo{
+	char* 	filename;
+	int 	filesize;		 
+	char*   filetype; 			
+} fileinfo;
 
 
 /* PACKET STRUCT */
 typedef struct Packet {
-            int seqNum ;
-            char * checkBits ;
-            char * data ;
-            char * isEnd ;
+	int 	seqNum ;
+	char* 	checkBits ;
+	char* 	data ;
+	char* 	isEnd ;
 } Packet;
 
 
+
+
+/* Print the usage string */
+void usage(){
+        printf("client\n./client <host> <port> <filename>\n") ;
+}
+
+
+
+/* MAIN  client*/
 int main(int argc, char ** argv)
 {
-	//input check
+    //input check
     if(argc != 4){
-        printf("please invoke program as ./client <host> <port> <filename>") ;
-        exit(0) ;
+        usage();
+        exit(0);
     }
 	
 
-	//  BUILD UDP SOCKET
-    char* hostString ;
-    char* portString ;
-    hostString = argv[1] ;
-    portString = argv[2] ;
-    char* filename = argv[3] ;
+
+    //  BUILD UDP SOCKET
+    char* hostString = argv[1];
+    char* portString = argv[2];
+    //hostString = argv[1] ;
+    //portString = argv[2] ;
+    char filename[sizeof(argv[3])];//; = argv[3];
+	strcpy(filename, argv[3]);
     int port = atoi(portString) ;
+	printf("file name size %ld\n", sizeof(argv[3])+1);
+
+
 
     char buff[MAX];
-    char initialPacket[MAX] ;
     int sockfd,len,n;
     struct sockaddr_in servaddr;
-    sockfd=socket(AF_INET,SOCK_DGRAM,0);
+    sockfd = socket(AF_INET,SOCK_DGRAM,0);
     if(sockfd==-1)
     {
         printf("socket creation failed...\n");
@@ -62,45 +81,59 @@ int main(int argc, char ** argv)
 
 
     bzero(&servaddr,sizeof(len));
-    servaddr.sin_family=AF_INET;
     servaddr.sin_addr.s_addr=inet_addr(hostString);
+    servaddr.sin_family=AF_INET;
     servaddr.sin_port=htons(port);
     len=sizeof(servaddr);
 
  
 	//OPEN FILE TO TRANSFER 
-    FILE *fileptr;
-    char *fileInBytes;
-    int filelen;
+    FILE *fileptr;  			//file pointer (input)
+    int filelen;				//file length  (bytes)
+    char *fileInBytes;			//file contents(bytes)
 
-    fileptr = fopen(filename, "rb");  // Open the file in binary mode
-   // printf("%s \n",filename) ;
-    fseek(fileptr, 0L, SEEK_END);          // Jump to the end of the file
-    filelen = ftell(fileptr);             // Get the current byte offset in the file
-    rewind(fileptr);                      // Jump back to the beginning of the file
+	struct fileinfo file;		//struct of file info 
+	file.filename = argv[3];    //set fileinfo filename 
 
-    fileInBytes = (char *)malloc((filelen+1)*sizeof(char)); // Enough memory for file + \0
-    fread(fileInBytes, filelen, 1, fileptr); // Read in the entire file
-    fclose(fileptr); // Close the file
+    fileptr = fopen(filename, "rb");  	// Open the file in binary mode
+	fseek(fileptr, 0L, SEEK_END);       // Jump to the end of the file
+	filelen = ftell(fileptr);           // Get the current byte offset in the file
+	rewind(fileptr);                    // Jump back to the beginning of the file
+    printf("Preparing to Transfer: %s \n",filename) ;
 
 
-		
+    fileInBytes = (char *)malloc((filelen+1)*sizeof(char)); 	// Enough memory for file + \0
+    fread(fileInBytes, filelen, 1, fileptr); 					// Read in the entire file
+    fclose(fileptr); 											// Close the file
+
+	printf("file length: %d\n", filelen);	
 
     //File is now read into buffer. Now we must transmit the file
     /* CREATE INITIAL PACKET */
-	int numWindows= filelen/20;
+    char initialPacket[MAX] ;
+    int numWindows= filelen/20;
     char* seqNum = "0" ;
     bzero(initialPacket,sizeof(initialPacket));
     strcpy(initialPacket,"check");
     strcat(initialPacket,":");
     //cast seq num to char*
-   // char * seqNumString = (char*)&seqNum;
+   	//char * seqNumString = (char*)&seqNum;
     strcat(initialPacket,seqNum);
     strcat(initialPacket,":");
-    strcat(initialPacket,filename);
+
+
+	//FILENAME 
+	char strtmp[sizeof(filename)+1]; 
+	strcpy(strtmp, filename);
+	//= strdup(filename);
+	
+    strcat(initialPacket,strtmp);
     strcat(initialPacket,":");
-	//strcat(initialPacket,numWindows);
-	//strcat(initialPacket,":");
+
+
+
+    //strcat(initialPacket,numWindows);
+    //strcat(initialPacket,":");
     //cast file length to char*
     /*
     char lengthString[8] ;
@@ -111,17 +144,26 @@ int main(int argc, char ** argv)
 
     printf("packet: %s \n",initialPacket) ;
     */
-   // printf("Sending to server--- %s \n",initialPacket) ;
+
+
+	//apply the file length 
+	char fileLengthString[15] ;
+	sprintf(fileLengthString, "%d",filelen );
+	strcat(initialPacket, fileLengthString);
+	strcat(initialPacket, ":");
+	
+
 
 
 	/* SEND THE INITIAL PACKET */
+    printf("Sending to server--- %s \n",initialPacket) ;
     sendto(sockfd,initialPacket,sizeof(initialPacket),0,(SA *)&servaddr,len);
 
 	
-	/* WAIT ON SERVER RESPONSE */
+    /* WAIT ON SERVER RESPONSE */
     //packet has been sent to server wait for servers response before data transmission begins:
     printf("Waiting on Servers response: \n") ;
-     recvfrom(sockfd,buff,sizeof(buff),0,(SA *)&servaddr,&len);
+    recvfrom(sockfd,buff,sizeof(buff),0,(SA *)&servaddr,&len);
     printf("Server says: %s \n",buff) ;
 
 	int windowSize;
@@ -149,60 +191,62 @@ int main(int argc, char ** argv)
 	
 
 
-	/*SERVER ACCEPTED CONNECTION CONTINUING */
-	//Server has given us approval to send so package up the data and prepare to send it
+    /*SERVER ACCEPTED CONNECTION CONTINUING */
+    //Server has given us approval to send so package up the data and prepare to send it
     
 
-	int packetSize = 5;
+    int dataSize = 20;
+    int lastPacket = filelen  / dataSize +1;
     int seqNumInt = 1 ;
-	int lastPacket = filelen/packetSize;
+	printf("LastPacket number: %d\n",lastPacket);
     char allPackets[10000][MAX] ;
     int j = 0 ;
     int k = 0 ;
+
 	/* CREATE PACKETS LOOP */
-    for(j = 0; j < filelen/packetSize+1; j++){
-        char packet[MAX] ;
+    for(j = 0; j < lastPacket; j++){
+        //char packet[MAX] ;
+		char* packet = (char*)malloc(sizeof(char)*MAX);
         bzero(packet,MAX) ;
 
+
 		/* APPLY CHECK */
-        strcpy(packet,"check");
-        strcat(packet,":");
+		memcpy(packet+strlen(packet), "check:", sizeof(char)*6);
+        //strcat(packet,":");
+
 
 		/* LAST PACKET CHECK / FLAG FOR LAST PACKET*/ 
-		if(j==lastPacket) 
+		if(j==lastPacket-1) 
 			strcat(packet,"y");
 		else 
 			strcat(packet,"n");
-			strcat(packet,":");
+		strcat(packet,":");
+
 
 		/* APPLY SEQUENCE NUMBER  */	
-        char seqNumString[4] ;
+        char seqNumString[15] ;
         sprintf(seqNumString, "%d",seqNumInt );
-        strcat(packet,seqNumString);
+		memcpy(packet+strlen(packet), seqNumString, strlen(seqNumString));
+        strcat(packet,":");
+
+		/*apply dataSegmentSize*/
+		char dataSizeString[15];
+		sprintf(dataSizeString, "%d",dataSize );
+		memcpy(packet+strlen(packet), dataSizeString, strlen(dataSizeString));
         strcat(packet,":");
 	
 		/* APPLY DATA */
-        int i = 0 ;
-        char dataBuff[3] ;   //? packet data size ? 
-		bzero(dataBuff,sizeof(dataBuff));
-        for (i ; i < 5 ; i ++){  // 5?  packet data size? 
-			if(fileInBytes[k] == EOF){
-				dataBuff[i]='\0';
-				break;//
-			}
-            dataBuff[i] = fileInBytes[k] ;
-            k++ ;
-        }
-        //dataBuff[5] = "\0" ;
-        strcat(packet,dataBuff) ;
+		memcpy(packet+strlen(packet), fileInBytes+k*sizeof(char), sizeof(char) *dataSize);
+		k+=dataSize;
         strcat(packet,":") ;
-       	//packet[i] = "\0" ;
-        //printf("packet: %s \n",packet) ;
+		
+
+        printf("Sending Packet: %s \n",packet) ;
         strcpy(allPackets[j], packet);
-        //printf("%s \n",allPackets[j]) ;
-       	//bzero(packet,MAX) ;
         seqNumInt++ ;
+		free(packet);
     }
+
 
 
     /* TEST PRINT ALL PACKETS 

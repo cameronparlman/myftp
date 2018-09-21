@@ -1,5 +1,9 @@
-//UDP SOCKETS CHAT APPLICATION (SERVER & CLIENT) USING C
+/*
+Author: Cameron Parlman
+Description: 
+	ftp client/server using a udp connection 
 
+*/
 
 //SERVER
 #include <sys/time.h>
@@ -10,49 +14,17 @@
 #include<netdb.h>
 #include<string.h>
 #include<stdlib.h>
-#define MAX 150
+
+#define MAX 300
 //#define PORT 43454
 #define SA struct sockaddr
-/*
-void func(int sockfd)
-{
-    printf("in func");
-    char buff[MAX];
-    int n,clen;
-    struct sockaddr_in cli;
-    clen=sizeof(cli);
-
-    printf("before for") ;
-    for(;;)
-    {
-        printf("here") ;
-        bzero(buff,MAX);
-        recvfrom(sockfd,buff,sizeof(buff),0,(SA *)&cli,&clen);
-        printf("From client: %s",buff);
-
-        /*
-        bzero(buff,MAX);
-        n=0;
-
-        while((buff[n++]=getchar())!='\n');
-            sendto(sockfd,buff,sizeof(buff),0,(SA *)&cli,clen);
-
-        if(strncmp("exit",buff,4)==0)
-        {
-            printf("Server Exit...\n");
-            break;
-        }
-        
-    }
-}
-*/
-
 /* PACKET STRUCT */
 typedef struct {
 	int seqNum ;
 	char * checkBits ;
 	char * data ;
 } Packet;
+
 
 /* MAIN */
 int main(int argc, char ** argv)
@@ -63,6 +35,7 @@ int main(int argc, char ** argv)
         exit(0) ;
     }
 
+
 	/* UDP SOCKET SETUP */
     char* portString ;
     portString = argv[1] ;
@@ -70,6 +43,7 @@ int main(int argc, char ** argv)
     int sockfd;
     struct sockaddr_in servaddr;
     sockfd=socket(AF_INET,SOCK_DGRAM,0);
+
 
     if(sockfd==-1)
     {
@@ -85,6 +59,8 @@ int main(int argc, char ** argv)
     servaddr.sin_addr.s_addr=htonl(INADDR_ANY);
     servaddr.sin_port=htons(port);
 	
+
+
 	/* BIND SOCKET */
     if((bind(sockfd,(SA *)&servaddr,sizeof(servaddr)))!=0)
     {
@@ -103,10 +79,12 @@ int main(int argc, char ** argv)
     clen=sizeof(cli);
 	int num_windows =5;
 
+
 	/* RECEIVE INITIAL PACKET */
     bzero(buff,MAX);
     recvfrom(sockfd,buff,sizeof(buff),0,(SA *)&cli,&clen);
-    printf("From client: %s \n",buff);
+    printf("Initial Packet From client: %s \n",buff);
+
 
 	/*Socket Timeout setup */
 	struct timeval tv;
@@ -119,40 +97,45 @@ int main(int argc, char ** argv)
 
 
 	/* PARSE INITIAL PACKET */
-    char filename[32] ;
-    char checkBits[5] ;
-    char seqNumString[5];
+    //char checkBits[checkbitsSize] ;
+	int checkbitsSize = 6;
     int seqNum ,i ;
+
+	char* token = strtok(buff, ":");
+	//checkbits
+	char * checkBits = (char*)malloc(sizeof(char)*(sizeof(token)+1));
+	memcpy(checkBits, token, sizeof(char) * (sizeof(token)+1) );
+	//int checkbitsSize = sizeof(checkBits);
+
+	//sequence number
+	token = strtok(NULL, ":");
+	char * seqNumString = (char*)malloc(sizeof(char)*(sizeof(token)+1));
+	memcpy(seqNumString, token, sizeof(char) * (sizeof(token)+1) );
+	seqNum = atoi(seqNumString);	
+	free(seqNumString);
+
+	//filename
+	token = strtok(NULL, ":");
+	char * filename = (char*)malloc(sizeof(char)*(sizeof(token)+1));
+	memcpy(filename, token, sizeof(char) * (sizeof(token)+1) );
 	
-	/* PARSE CHECKBITS */
-    for(i = 0 ; buff[i] != ':' ; i++){
-        checkBits[i] = buff[i] ;
-    }
-   	//printf("check bits: %s \n",checkBits) ;
-    //printf("%s \n",buff[i]) ;
+	//filesize 
+	token = strtok(NULL, ":");
+	char * fileLengthString = (char*)malloc(sizeof(char)*(sizeof(token)+1));
+	memcpy(fileLengthString, token, sizeof(char) * (sizeof(token)+1) );
+	int filesize = atoi(fileLengthString) ;
+	free(fileLengthString);
+	token = strtok(NULL, ":");
 
+	printf("check size:\t%d\n", checkbitsSize);
+    printf("check bits:\t%s\n",checkBits) ;
+    printf("SeqNum:\t\t%d\n", seqNum) ;
+   	printf("Filename:\t%s\n", filename) ;
+    printf("FileSize:\t%d\n", filesize) ;
+	printf("\n");
 
-	/* PARSE SEQUENCE NUMBER */
-    i++ ;
-    int j = 0;
-    for( ; buff[i] != ':' ; i++){
-        seqNumString[j] = buff[i] ;
-        j++ ;
-    }
-    seqNum = atoi(seqNumString) ;
-   	//printf("SeqNum: %d \n",seqNum) ;
-    //printf("I: %d \n",i) ;
-
-
-	/* PARSE FILENAME */
-    i++ ;
-    j = 0 ;
-    for(i ; buff[i] != ':' ; i++){
-        filename[j] = buff[i] ;
-        j++ ;
-    }
-    filename[j] = '\0' ;
-	i++;
+	//return 0;
+	
 
 
 	/* PARSE NUMBER OF WINDOWS */
@@ -172,7 +155,6 @@ int main(int argc, char ** argv)
 	int windowSize = 7; 
 	char windowSizeString[1] ;
 	sprintf(windowSizeString,"%d",windowSize) ;
-   	//printf("filename: %s \n", filename) ;
 
 
 	/* ANALYZE INITIAL PACKET CHECK / SEND ACK FOR FILE TRANS */
@@ -195,11 +177,17 @@ int main(int argc, char ** argv)
 
     //wait for data packets
 
+
+
+
+
+
+
 	/* SETUP FOR RECEIVING DATA */
     char window[windowSize][MAX];
 
-	char lastpacket ; 			// last packet flag 	
     Packet allPackets[10000]; 	// all packets being stored 
+
 
 	/* 	INITIALIZE ACKNOWLEDGEMENTS */
     int recNums[10000] ;
@@ -211,22 +199,24 @@ int main(int argc, char ** argv)
 
 	
 	/* RECEIVE DATA PACKETS */	
-	
 			
     int h ;
 	int windowNum = 0;
 	int packetCount=0;
 	int lastPacketNum = 10000;
 	int lastFlag = 0;
+
+	char * lastpacket = (char*)malloc(sizeof(char)); 	// last packet flag 	
 	while(lastFlag == 0 ){
 		/* RECEIVE A WINDOW */
 		for( h = 0 ; h < windowSize ; h ++){
 			//zero/initialize values
 			bzero(buff,sizeof(buff)) ;
-			bzero(checkBits,sizeof(checkBits)) ;
+			//bzero(checkBits,sizeof(checkBits)) ;
 
 			/* TIMEOUT ? waiting for packet */
 			/* RECEIVE PACKET */
+			//TODO set up an if packet received,.. catch errors. resend.
 			recvfrom(sockfd,buff,sizeof(buff),0,(SA *)&cli,&clen);
 			printf("Recieved: %s \n", buff) ;
 			packetCount++;
@@ -234,73 +224,76 @@ int main(int argc, char ** argv)
 			
 			/* PARSE DATA PACKETS */
 			/* PARSE CHECK BITS */
-			for(i = 0 ; buff[i] != ':' ; i++){
-				checkBits[i] = buff[i] ;
+			char* tmpBuff = (char*)malloc(sizeof(char)*(sizeof(buff)));
+			memcpy(tmpBuff, buff, sizeof(char) * (sizeof(buff)));
+			char* Data;
+			//check
+
+			//memcpy(checkBits, token, sizeof(char) * (sizeof(token)+1) );
+			
+			token = strtok(buff, ":"); 
+			if(token){
+				//checkbits
+				memcpy(checkBits, token, strlen(token)+1);	
+				printf("CheckB: %s\n", checkBits);
+				printf("CheckTok: %s\n", token);
+				printf("Checksize: %ld\n", sizeof(token)+1);
+
+				/* PARSE LAST BIT FLAG */
+				token = strtok(NULL, ":"); 
+				memcpy(lastpacket, token, strlen(token));
+				printf("lastp: %s\n", lastpacket);
+				
+				/* PARSE SEQUENCE NUMBER */
+				token = strtok(NULL, ":"); 
+				seqNum = atoi(token) ;
+				printf("seqNu: %d\n", seqNum);
+
+				/*PARSE DATA SIZE */ 
+				token = strtok(NULL, ":"); 
+				int datasize = atoi(token);
+				printf("dataS: %d\n", datasize);
+			
+				/* PARSE DATA FROM PACKET */
+				token = strtok(NULL, ":"); 
+				Data = (char*)malloc(sizeof(char)*sizeof(token)+1);
+				memcpy(Data, token, strlen(token));	
+				printf("Data : %s\n\n", Data);
+				
+				//int dataTokenSize = sizeof(char)*(sizeof(token)+1);
+				int dataTokenSize = strlen(token);//sizeof(char)*(sizeof(token)+1);
+				if(dataTokenSize != datasize){
+					printf("UNEQUAL, tokensize:%d\tdatasize:%d\n\n",dataTokenSize, datasize);
+				}
+
 			}
-			//printf("CheckBits: %s \n",checkBits ) ;
-			i++;
-
-
-			/* PARSE LAST BIT FLAG */
-			lastpacket = buff[i];
-			//printf("Last Packet: %c",lastpacket) ;
-
-
-			/* PARSE SEQUENCE NUMBER */
-			i+=2;
-			int j = 0;
-			for(i = i; buff[i] != ':' ; i++){
-				//printf("in loop \n") ;
-				seqNumString[j] = buff[i] ;
-				j++ ;
-			}
-			seqNumString[j]='\0';
-			seqNum = atoi(seqNumString) ;
-			//printf("SeqNum: %d\n",seqNum) ;
-
-
-			/*FLAG THAT PACKET WAS RECEIVED */
+						/*FLAG THAT PACKET WAS RECEIVED */
+			/* and correct */
 			recNums[seqNum] = 1 ;
 
-		
-			/* PARSE DATA FROM PACKET */
-			char dataBuff[3] ;
-			bzero(dataBuff,sizeof(dataBuff));
-			i++ ;
-			j = 0 ; 
-			for(i = i; buff[i] != ':' ; i++){
-				if(buff[i]=='\0'){
-					dataBuff[j]=buff[i];
-					break;
-				}
-				dataBuff[j] = buff[i] ;
-				j++ ;
-			}
-			//printf("Data: %s\n",dataBuff) ;
-
-
-			//Packet temp ;
-			//temp.seqNum = seqNum ; // = {k,"check",dataBuff,"n"} ;
-			//temp.checkBits = checkBits ;
-			//temp.data = dataBuff ;
-
-			
 			/* STORE PACKETS */
-			allPackets[seqNum].data = malloc(strlen(dataBuff));
+			allPackets[seqNum].data = malloc(strlen(Data));
 			allPackets[seqNum].checkBits = malloc(strlen(checkBits));
 			allPackets[seqNum].seqNum = seqNum;
-			strcpy(allPackets[seqNum].data, dataBuff);
+			strcpy(allPackets[seqNum].data, Data);
 			strcpy(allPackets[seqNum].checkBits, checkBits);
 
+			//free memory 
+			if(tmpBuff)
+				free(tmpBuff);
+			if(Data)
+				free(Data);
+		
+
 			
-			if(lastpacket == 'y'){
+			if(*lastpacket == 'y'){
 				printf("FLAG LAST PACKET\n");	
 				lastPacketNum = seqNum;
 				lastFlag=1;
 			}
+
 			//check the recNum array to find next expected packet and send ack
 			/* FIND SEND ACK FOR NEXT PACKETS / MISSING */
-
 			printf("packetCount = %d\n", lastPacketNum);
 			for(i = 0 ; i < 10000 ; i++){
 				if(recNums[i] == -1){
@@ -313,12 +306,9 @@ int main(int argc, char ** argv)
 			}
 
 
-
-
-
 			windowNum++;
 			/// check for last packet 
-			if(lastpacket == 'y'){
+			if(*lastpacket == 'y'){
 				lastPacketNum = seqNum;
 				lastFlag=1;
 				break;
@@ -326,6 +316,7 @@ int main(int argc, char ** argv)
 		} //end receive windowsize of packets 
 	}//end recieve windows 
 	
+
 		
 	FILE *fpOut;
 		fpOut = fopen("output.txt", "wb");
@@ -418,3 +409,49 @@ int main(int argc, char ** argv)
 
 //References 
 // http://mcalabprogram.blogspot.com/2012/01/udp-sockets-chat-application-server.html
+
+
+
+
+
+/*
+void func(int sockfd)
+{
+    printf("in func");
+    char buff[MAX];
+    int n,clen;
+    struct sockaddr_in cli;
+    clen=sizeof(cli);
+
+    printf("before for") ;
+    for(;;)
+    {
+        printf("here") ;
+        bzero(buff,MAX);
+        recvfrom(sockfd,buff,sizeof(buff),0,(SA *)&cli,&clen);
+        printf("From client: %s",buff);
+
+        /*
+        bzero(buff,MAX);
+        n=0;
+
+        while((buff[n++]=getchar())!='\n');
+            sendto(sockfd,buff,sizeof(buff),0,(SA *)&cli,clen);
+
+        if(strncmp("exit",buff,4)==0)
+        {
+            printf("Server Exit...\n");
+            break;
+        }
+        
+    }
+}
+*/
+
+
+
+
+
+
+
+

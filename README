@@ -1,6 +1,7 @@
 
 Purpose:
 	learn to design networked programs by implementing a ftp client server using udp 
+	client sends a file to server
 
 usage: 
 
@@ -9,3 +10,17 @@ usage:
 
 	Client
 	"./client <host> <port> <input file> 	
+
+
+
+Description 
+	Initial packet from client 
+	check:<int-sequence-number>:<filename>:
+	
+	datapackets
+	check:<char-(y/n)-lastpacket>:<int-sequence-number>:<int-datasize>:<string data>:
+
+
+
+Note: 
+	

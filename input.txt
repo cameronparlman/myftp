@@ -1,0 +1,2 @@
+this is my input file it has many words so that i can send them to the other side. The server will be so happy when i put my files inside it.
+test strings.
