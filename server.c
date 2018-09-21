@@ -227,11 +227,9 @@ int main(int argc, char ** argv)
 			char* tmpBuff = (char*)malloc(sizeof(char)*(sizeof(buff)));
 			memcpy(tmpBuff, buff, sizeof(char) * (sizeof(buff)));
 			char* Data;
-			//check
-
-			//memcpy(checkBits, token, sizeof(char) * (sizeof(token)+1) );
 			
-			token = strtok(buff, ":"); 
+
+			token = strtok(tmpBuff, ":"); 
 			if(token){
 				//checkbits
 				memcpy(checkBits, token, strlen(token)+1);	
@@ -255,42 +253,50 @@ int main(int argc, char ** argv)
 				printf("dataS: %d\n", datasize);
 			
 				/* PARSE DATA FROM PACKET */
-				token = strtok(NULL, ":"); 
-				Data = (char*)malloc(sizeof(char)*sizeof(token)+1);
-				memcpy(Data, token, strlen(token));	
+				token = strtok(NULL, "\0"); 
+				//Data = (char*)malloc(sizeof(char)*sizeof(token)+1);
+				Data = (char*)malloc(strlen(token));
+				memcpy(Data, token, sizeof(char) * datasize);	
 				printf("Data : %s\n\n", Data);
 				
+				//little error check, does the amount of data recieved match the amount client said it sent?
 				//int dataTokenSize = sizeof(char)*(sizeof(token)+1);
 				int dataTokenSize = strlen(token);//sizeof(char)*(sizeof(token)+1);
 				if(dataTokenSize != datasize){
 					printf("UNEQUAL, tokensize:%d\tdatasize:%d\n\n",dataTokenSize, datasize);
 				}
 
-			}
-						/*FLAG THAT PACKET WAS RECEIVED */
-			/* and correct */
-			recNums[seqNum] = 1 ;
+				/*FLAG THAT PACKET WAS RECEIVED */
+				/* and correct */
+				recNums[seqNum] = 1 ;
 
-			/* STORE PACKETS */
-			allPackets[seqNum].data = malloc(strlen(Data));
-			allPackets[seqNum].checkBits = malloc(strlen(checkBits));
-			allPackets[seqNum].seqNum = seqNum;
-			strcpy(allPackets[seqNum].data, Data);
-			strcpy(allPackets[seqNum].checkBits, checkBits);
+
+				/* STORE PACKETS */
+				allPackets[seqNum].data = malloc(strlen(Data));
+				allPackets[seqNum].checkBits = malloc(strlen(checkBits));
+				allPackets[seqNum].seqNum = seqNum;
+				//strcpy(allPackets[seqNum].data, Data);
+				//strcpy(allPackets[seqNum].checkBits, checkBits);
+				memcpy(allPackets[seqNum].data, Data, strlen(Data));
+				memcpy(allPackets[seqNum].checkBits, checkBits, strlen(checkBits));
+
+			}
 
 			//free memory 
 			if(tmpBuff)
 				free(tmpBuff);
 			if(Data)
 				free(Data);
+			bzero(token, strlen(token));
 		
 
-			
+			/* flag for last packet */			
 			if(*lastpacket == 'y'){
 				printf("FLAG LAST PACKET\n");	
 				lastPacketNum = seqNum;
 				lastFlag=1;
 			}
+
 
 			//check the recNum array to find next expected packet and send ack
 			/* FIND SEND ACK FOR NEXT PACKETS / MISSING */
